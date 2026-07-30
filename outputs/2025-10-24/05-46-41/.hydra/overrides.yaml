@@ -1,0 +1,9 @@
+- dataset=PROTEIN
+- model.M=100
+- training.risk=des_rivasplata_dir
+- training.MC_draws=1
+- training.batch_size=1024
+- training.risk_type=draw
+- model.pred=rf
+- model.prior=0.5
+- pretraining.learnt_prior=False

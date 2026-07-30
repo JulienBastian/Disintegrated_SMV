@@ -1,0 +1,9 @@
+- dataset=SENSORLESS
+- model.M=100
+- training.risk=des_rivasplata_dir
+- training.MC_draws=1
+- training.batch_size=1024
+- training.risk_type=draw
+- model.pred=rf
+- model.prior=0.1
+- pretraining.learnt_prior=True
