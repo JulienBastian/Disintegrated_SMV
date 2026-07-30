@@ -1,7 +1,0 @@
-- dataset=CODRNA
-- model.M=10
-- training.risk=des_rivasplata_dir
-- training.MC_draws=1
-- training.risk_type=draw
-- model.pred=stumps-uniform
-- model.prior=0.5

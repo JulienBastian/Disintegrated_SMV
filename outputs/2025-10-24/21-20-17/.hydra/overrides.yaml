@@ -1,8 +1,0 @@
-- dataset=MNIST
-- model.M=100
-- training.risk=exact
-- training.risk_type=stochastic
-- training.batch_size=1024
-- model.pred=rf
-- model.prior=0.5
-- pretraining.learnt_prior=False

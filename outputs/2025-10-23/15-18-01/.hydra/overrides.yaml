@@ -1,8 +1,0 @@
-- dataset=MUSH
-- model.M=10
-- training.risk=des_dir
-- training.MC_draws=1
-- training.risk_type=draw
-- model.pred=stumps-uniform
-- training.order=1.5
-- model.prior=0.25
