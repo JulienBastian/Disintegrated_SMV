@@ -143,6 +143,13 @@ do
                         pretraining.learnt_prior="$learnt_prior"
                 done
 
+            elif [ "$r" = "CB" ]; then
+                # the C-bound is only run with the uniform prior over the trees
+                if [ "$learnt_prior" = "False" ]; then
+                    run_task dataset="$d" model.M=100 training.risk="$r" training.batch_size=1024 \
+                        training.risk_type=stochastic model.pred=rf model.prior=1 pretraining.learnt_prior=False
+                fi
+
             else
                 run_task dataset="$d" model.M=100 training.risk="$r" training.batch_size=1024 \
                     training.risk_type=stochastic model.pred=rf model.prior=1 pretraining.learnt_prior="$learnt_prior"

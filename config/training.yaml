@@ -33,5 +33,5 @@ dataset: 'PROTEIN'
 
 bound:
   delta: 0.05
-  type: "seeger"
+  type: "seeger" # CB always uses its own certificate, saved under "cbound"
   stochastic: False

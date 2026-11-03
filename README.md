@@ -42,7 +42,10 @@ after training with confidence level `delta / 2` each.  The vote with the
 smallest bound is retained: `test-error`, the configured bound, `posterior`, and
 `theta` refer to that single vote.  The result file also records the zero-based
 `selected-vote`, `individual-bounds`, `cross-test-error`, and the original
-combined bound under `cross-<bound type>`.
+combined bound under `cross-<bound type>`. As in the paper, the analysis
+notebook reports the retained vote for the disintegrated methods (DIS-R and
+DIS-V) and the combination of the two votes (`cross-*` entries) for the other
+methods.
 
 ## C-bound baseline
 
@@ -53,7 +56,8 @@ voters, mini-batches and optimization protocol of the other methods (Adam,
 learning-rate decay, early stopping and best epoch according to the bound). On
 multiclass datasets, the C-bound is computed from the margin of the vote, as in
 the thesis of Viallard (2022, Chapter 4); `scripts/check_cbound_margin.py` checks
-this reduction. Its certificate is saved under the `cbound` key.
+this reduction. Its certificate is saved under the `cbound` key. As in the paper,
+its runtime is not reported by the analysis notebook.
 
 ```bash
 python training.py \

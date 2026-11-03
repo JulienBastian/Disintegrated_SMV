@@ -26,6 +26,8 @@ def main(cfg):
     if cfg.training.risk == "CB":
         # the C-bound comes with its own certificate: PAC-Bound 2 of Germain et al. (2015)
         cfg.bound.type = "cbound"
+        if cfg.pretraining.learnt_prior:
+            raise NotImplementedError("the C-bound is only run with the uniform prior over the voters")
 
     ROOT_DIR = f"{hydra.utils.get_original_cwd()}/results/{cfg.dataset}/{cfg.training.risk}/{cfg.bound.type}/optimize-bound={cfg.training.opt_bound}/stochastic-bound={cfg.bound.stochastic}/{cfg.model.pred}/learnt_prior={cfg.pretraining.learnt_prior}/M={cfg.model.M}/max-depth={cfg.model.tree_depth}/prior={cfg.model.prior}/"
     ROOT_DIR = Path(ROOT_DIR)
