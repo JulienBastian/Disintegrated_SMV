@@ -6,10 +6,11 @@ import torch
 
 from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader, ConcatDataset
+from torch.utils.data import DataLoader
 
+from cbound import cbound_routine
 from core.bounds import BOUNDS
-from core.losses import sigmoid_loss,sigmoid_gauss_loss, moment_loss, rand_loss
+from core.losses import sigmoid_loss, moment_loss, rand_loss
 from core.monitors import MonitorMV
 from core.utils import deterministic
 from data.datasets import Dataset, TorchDataset
@@ -17,15 +18,16 @@ from models.majority_vote import MultipleMajorityVote, MajorityVote
 from models.random_forest import two_forests
 from models.stumps import uniform_decision_stumps
 
-from optimization import stochastic_routine
+from optimization import select_best_individual_vote, stochastic_routine
 
 @hydra.main(config_path='config/training.yaml')
 def main(cfg):
 
+    if cfg.training.risk == "CB":
+        # the C-bound comes with its own certificate: PAC-Bound 2 of Germain et al. (2015)
+        cfg.bound.type = "cbound"
+
     ROOT_DIR = f"{hydra.utils.get_original_cwd()}/results/{cfg.dataset}/{cfg.training.risk}/{cfg.bound.type}/optimize-bound={cfg.training.opt_bound}/stochastic-bound={cfg.bound.stochastic}/{cfg.model.pred}/learnt_prior={cfg.pretraining.learnt_prior}/M={cfg.model.M}/max-depth={cfg.model.tree_depth}/prior={cfg.model.prior}/"
-    print(cfg.model.prior)
-    print(cfg.training.risk_type)
-    print(cfg.training.lr)
     ROOT_DIR = Path(ROOT_DIR)
     div ="KL"
     if cfg.model.uniform:
@@ -37,26 +39,14 @@ def main(cfg):
         ROOT_DIR /= f"MC={cfg.training.MC_draws}"
     elif (cfg.training.risk == "des_dir"):
         ROOT_DIR /= f"order={cfg.training.order}"
-        ROOT_DIR /= f"MC={cfg.training.MC_draws}" #for the sake of verification
+        ROOT_DIR /= f"MC={cfg.training.MC_draws}"
         ROOT_DIR /=f"risk-type={cfg.training.risk_type}"
         div = "Renyi"
-    elif (cfg.training.risk == "des_gauss") or (cfg.training.risk == "des_log_gauss"):
-        ROOT_DIR /= f"order={cfg.training.order}"
-        ROOT_DIR /= f"MC={cfg.training.MC_draws}" #for the sake of verification
-        ROOT_DIR /=f"risk-type={cfg.training.risk_type}"
-        ROOT_DIR /=f"var={cfg.model.var}"
-        div = "Renyi"
-    elif (cfg.training.risk == "des_rivasplata_gauss") or (cfg.training.risk == "des_rivasplata_log_gauss") :
-        ROOT_DIR /= f"MC={cfg.training.MC_draws}" #for the sake of verification
-        ROOT_DIR /=f"risk-type={cfg.training.risk_type}"
-        ROOT_DIR /=f"var={cfg.model.var}"
     elif (cfg.training.risk == "des_rivasplata_dir") :
-        ROOT_DIR /= f"MC={cfg.training.MC_draws}" #for the sake of verification
+        ROOT_DIR /= f"MC={cfg.training.MC_draws}"
         ROOT_DIR /=f"risk-type={cfg.training.risk_type}"
 
     
-    print("results will be saved in:", ROOT_DIR.resolve()) 
-
     # define params for each method
     risks = { # type: (loss, bound-coeff, distribution-type, kl factor)
         "exact": (None, 1., "dirichlet", 1.),
@@ -65,26 +55,33 @@ def main(cfg):
         "FO": (lambda x, y, z: moment_loss(x, y, z, order=1), 2., "categorical", 1.),
         "SO": (lambda x, y, z: moment_loss(x, y, z, order=2), 4., "categorical", 2.),
         "des_dir" : (lambda x, y, z: sigmoid_loss(x, y, z, c=cfg.training.sigmoid_c), 1., "dirichlet", 1.),
-        "des_gauss" : (lambda x, y, z: sigmoid_gauss_loss(x, y, z, c=cfg.training.sigmoid_c), 1., "gaussian", 1.),
         "des_rivasplata_dir" : (lambda x, y, z: sigmoid_loss(x, y, z, c=cfg.training.sigmoid_c), 1., "dirichlet", 1.),
-        "des_rivasplata_gauss" : (lambda x, y, z: sigmoid_gauss_loss(x, y, z, c=cfg.training.sigmoid_c), 1., "gaussian", 1.),
-        "des_log_gauss" : (lambda x, y, z: sigmoid_gauss_loss(x, y, z, c=cfg.training.sigmoid_c), 1., "log_gaussian", 1.),
-        "des_rivasplata_log_gauss" : (lambda x, y, z: sigmoid_gauss_loss(x, y, z, c=cfg.training.sigmoid_c), 1., "log_gaussian", 1.),
     }
 
     train_errors, test_errors, train_losses, bounds, strengths, entropies, kls, times = [], [], [], [], [], [], [], []
+    selected_votes, individual_bounds, cross_bounds, cross_test_errors = [], [], [], []
     for i in range(cfg.num_trials):
         
-        print("seed", cfg.training.seed+i)
         deterministic(cfg.training.seed+i)
 
         SAVE_DIR = ROOT_DIR / f"seed={cfg.training.seed+i}"
         SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
-        if (SAVE_DIR / "err-b.npy").is_file():
-            print(SAVE_DIR)
+        result_file = SAVE_DIR / "err-b.npy"
+        cached_results = None
+        if result_file.is_file():
+            cached_results = np.load(result_file, allow_pickle=True).item()
+
+        selection_is_cached = cfg.model.pred != "rf" or "selected-vote" in (cached_results or {})
+        if cached_results is not None and selection_is_cached:
             # load saved stats
-            seed_results = np.load(SAVE_DIR / "err-b.npy", allow_pickle=True).item()
+            seed_results = cached_results
+
+        elif cfg.training.risk == "CB":
+
+            data = Dataset(cfg.dataset, normalize=True, data_path=Path(hydra.utils.get_original_cwd()) / "data", valid_size=0)
+            seed_results = cbound_routine(cfg, data)
+            np.save(result_file, seed_results)
 
         else:
 
@@ -111,13 +108,10 @@ def main(cfg):
             bound = None
             if cfg.training.opt_bound:
 
-                print(f"Optimize {cfg.bound.type} bound")
                 if cfg.bound.stochastic:
-                    print("Evaluate bound regularizations over mini-batch")
                     bound = lambda n, model, risk: BOUNDS[cfg.bound.type](n, model, risk, delta=cfg.bound.delta, coeff=coeff, order=cfg.training.order, div = div, type=cfg.training.risk)
 
                 else:
-                    print("Evaluate bound regularizations over whole training set")
                     n = len(data.X_train)
                     bound = lambda _, model, risk: BOUNDS[cfg.bound.type](n, model, risk, delta=cfg.bound.delta, coeff=coeff, order=cfg.training.order, div = div, type=cfg.training.risk)
 
@@ -140,17 +134,16 @@ def main(cfg):
             if cfg.model.pred == "rf":
                 betas = [torch.ones(M) * cfg.model.prior for p in predictors] # prior
 
-                model = MultipleMajorityVote(predictors, betas, weights=(0.5, 0.5), mc_draws=cfg.training.MC_draws, distr=distr, kl_factor=kl_factor, risk_type=cfg.training.risk_type, sigma2 = cfg.model.var)
+                model = MultipleMajorityVote(predictors, betas, weights=(0.5, 0.5), mc_draws=cfg.training.MC_draws, distr=distr, kl_factor=kl_factor, risk_type=cfg.training.risk_type, order=cfg.training.order)
             
             else:
                 betas = torch.ones(M) * cfg.model.prior # prior
 
-                model = MajorityVote(predictors, betas, mc_draws=cfg.training.MC_draws, distr=distr, kl_factor=kl_factor, risk_type=cfg.training.risk_type, sigma2 = cfg.model.var)
+                model = MajorityVote(predictors, betas, mc_draws=cfg.training.MC_draws, distr=distr, kl_factor=kl_factor, risk_type=cfg.training.risk_type, order=cfg.training.order)
 
             
             
             if cfg.model.pred == "rf" and cfg.pretraining.learnt_prior == True :
-                print("Learning prior")
                 bound_prior = None 
                 betas = [torch.ones(M) * cfg.model.prior for p in predictors] # prior
 
@@ -160,31 +153,39 @@ def main(cfg):
                 ] 
 
                 
-                pre_train_model = MultipleMajorityVote(predictors, betas, weights=(0.5, 0.5), mc_draws=cfg.training.MC_draws, distr=distr, kl_factor=kl_factor, risk_type=cfg.training.risk_type)
+                pre_train_model = MultipleMajorityVote(
+                    predictors,
+                    betas,
+                    weights=(0.5, 0.5),
+                    mc_draws=cfg.training.MC_draws,
+                    distr=distr,
+                    kl_factor=kl_factor,
+                    risk_type=cfg.training.risk_type,
+                    order=cfg.training.order,
+                )
                 
                 monitor = MonitorMV(SAVE_DIR)
-                optimizer = Adam(model.parameters(), lr=cfg.training.lr)
+                optimizer = Adam(pre_train_model.parameters(), lr=cfg.training.lr)
 
                 lr_scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=2)
 
-                *_, best_train_stats, train_error, test_error, time = stochastic_routine(pretrainloader, testloader, model, optimizer, bound_prior, cfg.bound.type, loss=loss, monitor=monitor, num_epochs=10, lr_scheduler=lr_scheduler, model_type=cfg.training.risk, order = cfg.training.order, pretraining = True)
+                pre_train_model, _, best_train_stats, train_error, test_error, time = stochastic_routine(pretrainloader, testloader, pre_train_model, optimizer, bound_prior, cfg.bound.type, loss=loss, monitor=monitor, num_epochs=10, lr_scheduler=lr_scheduler, model_type=cfg.training.risk, order = cfg.training.order, pretraining = True)
         
                 posts = pre_train_model.get_post()
+                monitor.close()
 
-                if cfg.pretraining.project == True and distr == "gaussian": #project learnt prior into -1 , +1
-                    betas = []
-                    for p in posts:
-                        p_min, p_max = p.min(), p.max()
-                        if (p_max - p_min) > 0:
-                            p_norm = 2 * (p - p_min) / (p_max - p_min) - 1
-                        else:
-                            p_norm = torch.zeros_like(p)
-                        betas.append(p_norm.detach())
-                    
-                else:
-                    betas = [(p.detach()) for p in posts]
+                betas = [p.detach() for p in posts]
 
-                model = MultipleMajorityVote(predictors, betas, weights=(0.5, 0.5), mc_draws=cfg.training.MC_draws, distr=distr, kl_factor=kl_factor, risk_type=cfg.training.risk_type)
+                model = MultipleMajorityVote(
+                    predictors,
+                    betas,
+                    weights=(0.5, 0.5),
+                    mc_draws=cfg.training.MC_draws,
+                    distr=distr,
+                    kl_factor=kl_factor,
+                    risk_type=cfg.training.risk_type,
+                    order=cfg.training.order,
+                )
                 trainloader = [
                     DataLoader(train1, batch_size=cfg.training.batch_size // 2, num_workers=cfg.num_workers, shuffle=True),
                     DataLoader(train2, batch_size=cfg.training.batch_size // 2, num_workers=cfg.num_workers, shuffle=True)
@@ -196,27 +197,72 @@ def main(cfg):
             # init learning rate scheduler
             lr_scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.1, patience=2)
 
-            *_, best_train_stats, train_error, test_error, time = stochastic_routine(trainloader, testloader, model, optimizer, bound, cfg.bound.type, loss=loss, monitor=monitor, num_epochs=cfg.training.num_epochs, lr_scheduler=lr_scheduler, model_type=cfg.training.risk, order = cfg.training.order)
-    
-        
-            seed_results["train-error"] = train_error['error']
-            seed_results["test-error"] = test_error['error']
-            seed_results["train-risk"] = best_train_stats["error"]
-            seed_results[cfg.bound.type] = best_train_stats[cfg.bound.type]
+            best_model, _, best_train_stats, train_error, test_error, time = stochastic_routine(trainloader, testloader, model, optimizer, bound, cfg.bound.type, loss=loss, monitor=monitor, num_epochs=cfg.training.num_epochs, lr_scheduler=lr_scheduler, model_type=cfg.training.risk, order = cfg.training.order)
+            best_thetas = best_model.best_thetas
+
+            if isinstance(best_model, MultipleMajorityVote):
+                # We compare two data-dependent candidates.  Allocating delta/2
+                # to each individual bound preserves an overall confidence of
+                # at least 1-delta after selecting the smaller one.
+                individual_delta = cfg.bound.delta / len(best_model.mvs)
+                individual_bound = lambda n, individual_model, risk: BOUNDS[cfg.bound.type](
+                    n,
+                    individual_model,
+                    risk,
+                    delta=individual_delta,
+                    coeff=coeff,
+                    order=cfg.training.order,
+                    div=div,
+                    type=cfg.training.risk,
+                )
+                selected_model, selected_index, individual_stats, selected_test_stats = select_best_individual_vote(
+                    trainloader,
+                    testloader,
+                    best_model,
+                    individual_bound,
+                    cfg.bound.type,
+                    loss=loss,
+                    best_posts=best_thetas,
+                )
+
+                seed_results["cross-train-error"] = train_error["error"]
+                seed_results["cross-test-error"] = test_error["error"]
+                seed_results[f"cross-{cfg.bound.type}"] = best_train_stats[cfg.bound.type]
+                seed_results["individual-bounds"] = [stats[cfg.bound.type] for stats in individual_stats]
+                seed_results["individual-train-errors"] = [stats["error"] for stats in individual_stats]
+                seed_results["selected-vote"] = selected_index
+                seed_results["selection-delta"] = individual_delta
+                seed_results["theta"] = best_thetas[selected_index].detach()
+
+                selected_train_stats = individual_stats[selected_index]
+                seed_results["train-error"] = selected_train_stats["error"]
+                seed_results["test-error"] = selected_test_stats["error"]
+                seed_results["train-risk"] = selected_train_stats["error"]
+                seed_results[cfg.bound.type] = selected_train_stats[cfg.bound.type]
+                seed_results["posterior"] = selected_model.get_post().detach()
+                seed_results["strength"] = selected_train_stats["strength"]
+                seed_results["KL"] = selected_model.KL().item()
+                seed_results["entropy"] = selected_model.entropy().item()
+                print(
+                    f"Selected vote {selected_index}: {cfg.bound.type}="
+                    f"{selected_train_stats[cfg.bound.type]}; "
+                    f"test error={selected_test_stats['error']}"
+                )
+            else:
+                seed_results["train-error"] = train_error["error"]
+                seed_results["test-error"] = test_error["error"]
+                seed_results["train-risk"] = best_train_stats["error"]
+                seed_results[cfg.bound.type] = best_train_stats[cfg.bound.type]
+                seed_results["posterior"] = best_model.get_post().detach()
+                seed_results["theta"] = best_thetas.detach()
+                seed_results["strength"] = best_train_stats["strength"]
+                seed_results["KL"] = best_model.KL().item()
+                seed_results["entropy"] = best_model.entropy().item()
+
             seed_results["time"] = time
-            posts = model.get_post()  # renvoie une liste de tensors
-            posts_detached = [(p.detach()) for p in posts]
-            seed_results["posterior"] = posts_detached 
-
-        
-
-
-            seed_results["strength"] = best_train_stats["strength"]
-            seed_results["KL"] = model.KL().item()
-            seed_results["entropy"] = model.entropy().item()
 
             # save seed results
-            np.save(SAVE_DIR / "err-b.npy", seed_results)
+            np.save(result_file, seed_results)
             monitor.close()
 
         train_errors.append(seed_results["train-error"])
@@ -227,8 +273,19 @@ def main(cfg):
         bounds.append(seed_results[cfg.bound.type])
         times.append(seed_results["time"])
         train_losses.append(seed_results.pop("train-risk", None)) # available only for non-exact methods
+        if "selected-vote" in seed_results:
+            selected_votes.append(seed_results["selected-vote"])
+            individual_bounds.append(seed_results["individual-bounds"])
+            cross_bounds.append(seed_results[f"cross-{cfg.bound.type}"])
+            cross_test_errors.append(seed_results["cross-test-error"])
  
     results = {"train-error": (np.mean(train_errors), np.std(train_errors)),"test-error": (np.mean(test_errors), np.std(test_errors)), cfg.bound.type: (np.mean(bounds), np.std(bounds)), "time": (np.mean(times), np.std(times)), "strength": (np.mean(strengths), np.std(strengths)), "train-risk": (np.mean(train_losses), np.std(train_losses)), "entropy": (np.mean(entropies), np.std(entropies)), "KL": (np.mean(kls), np.std(kls))}
+
+    if selected_votes:
+        results["selection-rate-vote-0"] = np.mean(np.asarray(selected_votes) == 0)
+        results["individual-bounds"] = (np.mean(individual_bounds, axis=0), np.std(individual_bounds, axis=0))
+        results[f"cross-{cfg.bound.type}"] = (np.mean(cross_bounds), np.std(cross_bounds))
+        results["cross-test-error"] = (np.mean(cross_test_errors), np.std(cross_test_errors))
 
     np.save(ROOT_DIR / "err-b.npy", results)
 

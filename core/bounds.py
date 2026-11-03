@@ -6,12 +6,12 @@ from models.majority_vote import MultipleMajorityVote
 
 def mcallester_bound(n, model, risk, delta, coeff=1, order = None, div='KL', type=None, verbose=False, monitor=None):
 
-    if div == 'KL':
+    if type == 'des_rivasplata_dir':
+        kl = model.KL_disintegrated()
+    elif div == 'KL':
         kl = model.KL()
     elif div == 'Renyi':
         kl = model.Renyi(order)
-    elif type == 'des_rivasplata':
-        kl = model.KL_disintegrated()
 
     if isinstance(model, MultipleMajorityVote): # informed priors
         
@@ -23,10 +23,6 @@ def mcallester_bound(n, model, risk, delta, coeff=1, order = None, div='KL', typ
 
     bound = coeff * (risk + ((kl + const) / 2 / n)**0.5)
 
-    if verbose:
-        print(f"Empirical risk={risk.item()}, KL={kl}, const={const}, n={n}")
-        print(f"Bound={bound.item()}\n")
-
     if monitor:
         monitor.write(train={"KL": kl.item(), "risk": risk.item()})
 
@@ -34,7 +30,7 @@ def mcallester_bound(n, model, risk, delta, coeff=1, order = None, div='KL', typ
 
 def seeger_bound(n, model, risk, delta, coeff=1, order = None, div='KL', type=None, verbose=False, monitor=None):
 
-    if type == 'des_rivasplata_dir' or type == 'des_rivasplata_gauss':
+    if type == 'des_rivasplata_dir':
         kl = model.KL_disintegrated()
     elif div == 'KL':
         kl = model.KL() 
@@ -57,10 +53,6 @@ def seeger_bound(n, model, risk, delta, coeff=1, order = None, div='KL', type=No
 
     bound = coeff * klInvFunction.apply(risk, (torch.max(kl + const, torch.tensor(0))  / n))
 
-
-    if verbose:
-        print(f"Empirical risk={risk.item()}, div_type={div}, div={kl}, const={const}, n={n}")
-        print(f"Bound={bound.item()}\n")
 
     if monitor:
         monitor.write(train={"KL": kl.item(), "risk": risk.item()})

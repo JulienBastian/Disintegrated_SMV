@@ -5,15 +5,14 @@ from core.distributions import distr_dict
 
 class MajorityVote(torch.nn.Module):
 
-    def __init__(self, voters, prior, mc_draws=10, distr="dirichlet", kl_factor=1., risk_type="stochastic", sigma2 = .5):
+    def __init__(self, voters, prior, mc_draws=10, distr="dirichlet", kl_factor=1., risk_type="stochastic", order=1.5):
 
         super(MajorityVote, self).__init__()
         
-        if distr not in ["dirichlet", "categorical", "gaussian", "log_gaussian"]:
+        if distr not in ["dirichlet", "categorical"]:
             raise NotImplementedError
 
-        if (distr != "gaussian") and (distr != "log_gaussian"):
-            assert all(prior > 0), "all prior parameters must be positive"
+        assert all(prior > 0), "all prior parameters must be positive"
         self.num_voters = len(prior)
 
         self.risk_type = risk_type
@@ -21,20 +20,14 @@ class MajorityVote(torch.nn.Module):
         self.voters = voters
         self.mc_draws = mc_draws
         self.distr_type = distr
-        print(sigma2)
-        
-        if (distr == "gaussian") :
-            post = torch.rand(self.num_voters) * 2 - 1 + 1e-9  # uniform in (-1, 1)
-            self.post = torch.nn.Parameter(post, requires_grad=True)  # no log for gaussian
-            self.distribution = distr_dict[distr](self.post, mc_draws, sigma2)
-        elif (distr == "log_gaussian"):
-            post = torch.rand(self.num_voters) * 2 + 1e-9 # uniform draws in (0, 2]
-            self.post = torch.nn.Parameter(post, requires_grad=True)  # no log for gaussian
-            self.distribution = distr_dict[distr](self.post, mc_draws, sigma2)
-        else : 
-            post = torch.rand(self.num_voters) * 2 + 1e-9 # uniform draws in (0, 2]
-            self.post = torch.nn.Parameter(torch.log(post), requires_grad=True)  # use log (and apply exp(post) later so that posterior parameters are always positive)
-            self.distribution = distr_dict[distr](self.post, mc_draws)
+        if order <= 1:
+            raise ValueError("order must be greater than 1")
+
+        epsilon = 1e-4
+        alpha_floor = (order - 1) / order * prior
+        alpha = alpha_floor + epsilon + 2 * torch.rand(self.num_voters)
+        self.post = torch.nn.Parameter(torch.log(alpha), requires_grad=True)  # use log (and apply exp(post) later so that posterior parameters are always positive)
+        self.distribution = distr_dict[distr](self.post, mc_draws)
         self.kl_factor = kl_factor
 
     def forward(self, x):
@@ -48,8 +41,6 @@ class MajorityVote(torch.nn.Module):
 
     def voter_strength(self, data):
         """ expected accuracy of a voter of the ensemble"""
-        # import pdb; pdb.set_trace()
-        
         y_target, y_pred = data
 
         l = torch.where(y_target == y_pred, torch.tensor(1.), torch.tensor(0.))
@@ -63,7 +54,6 @@ class MajorityVote(torch.nn.Module):
 
         labels = thetas @ y_pred
 
-        # TODO: prediction for multiclass but not one-hot encoded
         if y_pred.dim() == 3:
             num_classes = labels.shape[2]
             c_min, c_max = 0, num_classes - 1
@@ -89,10 +79,7 @@ class MajorityVote(torch.nn.Module):
 
 
     def get_post(self):
-        if self.distr_type != "gaussian" : 
-            return torch.exp(self.post)
-        else : 
-            return self.post
+        return torch.exp(self.post)
     
     def get_theta(self, draw = False):
         return self.distribution.get_theta(draw)
@@ -107,10 +94,7 @@ class MajorityVote(torch.nn.Module):
          
         if self.distr_type == "categorical": # make sure params sum to 1
             value /= value.sum()
-        if self.distr_type == "gaussian":
-            self.post = torch.nn.Parameter(value, requires_grad=True)
-        else:
-            self.post = torch.nn.Parameter(torch.log(value), requires_grad=True)   # use log (and apply exp(post) later so that posterior parameters are always positive)
+        self.post = torch.nn.Parameter(torch.log(value), requires_grad=True)   # use log (and apply exp(post) later so that posterior parameters are always positive)
 
         self.distribution.alpha = self.post
 
@@ -119,7 +103,7 @@ class MajorityVote(torch.nn.Module):
 
 class MultipleMajorityVote(torch.nn.Module):
 
-    def __init__(self, voter_sets, priors, weights, mc_draws=10, posteriors=None, distr="dirichlet",  kl_factor=1., risk_type="stochastic", sigma2=.5):
+    def __init__(self, voter_sets, priors, weights, mc_draws=10, posteriors=None, distr="dirichlet",  kl_factor=1., risk_type="stochastic", order=1.5):
 
         super(MultipleMajorityVote, self).__init__()
 
@@ -129,10 +113,10 @@ class MultipleMajorityVote(torch.nn.Module):
         if posteriors is not None:
             assert len(priors) == len(posteriors), "must specify same number of priors and posteriors"
 
-            self.mvs = torch.nn.ModuleList([MajorityVote(voters, prior, mc_draws=mc_draws, posterior=post, distr=distr, kl_factor=kl_factor, risk_type=risk_type, sigma2=sigma2) for voters, prior, post in zip(voter_sets, priors, posteriors)])
+            self.mvs = torch.nn.ModuleList([MajorityVote(voters, prior, mc_draws=mc_draws, posterior=post, distr=distr, kl_factor=kl_factor, risk_type=risk_type, order=order) for voters, prior, post in zip(voter_sets, priors, posteriors)])
 
         else:
-            self.mvs = torch.nn.ModuleList([MajorityVote(voters, prior, mc_draws=mc_draws, distr=distr, kl_factor=kl_factor, risk_type=risk_type, sigma2=sigma2) for voters, prior in zip(voter_sets, priors)])
+            self.mvs = torch.nn.ModuleList([MajorityVote(voters, prior, mc_draws=mc_draws, distr=distr, kl_factor=kl_factor, risk_type=risk_type, order=order) for voters, prior in zip(voter_sets, priors)])
 
         self.weights = weights
 

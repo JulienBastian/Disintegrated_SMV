@@ -19,12 +19,13 @@ Code adapted from https://github.com/Qwicen/node/blob/master/lib/data.py .
 
 """
 
-def download(url, filename, delete_if_interrupted=True, chunk_size=4096):
+def download(url, filename, delete_if_interrupted=True, chunk_size=4096, timeout=60):
     """ saves file from url to filename with a fancy progressbar """
     try:
         with open(filename, "wb") as f:
             print("Downloading {} > {}".format(url, filename))
-            response = requests.get(url, stream=True)
+            response = requests.get(url, stream=True, timeout=timeout)
+            response.raise_for_status()
             total_length = response.headers.get('content-length')
 
             if total_length is None:  # no content length header
@@ -67,7 +68,7 @@ def read_idx_file(path, d, sep=None, bz2_compressed=False):
                 continue
             (i,v) = pair.split(":")
             if v=='':
-                import pdb; pdb.set_trace()
+                raise ValueError(f"Malformed feature value in {path}: {pair!r}")
             x[int(i)-1] = float(v)
         X.append(x)
 

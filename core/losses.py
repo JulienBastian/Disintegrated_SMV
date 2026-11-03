@@ -8,15 +8,6 @@ def sigmoid_loss(y_target, y_pred, thetas, c=100):
 
     return torch.sigmoid(c * (w_theta - 0.5))
 
-def sigmoid_gauss_loss(y_target, y_pred, thetas, c=100):
-    
-    mean_theta = (thetas.sum()/2).detach()
-    w_theta = torch.stack([torch.where(y_target != y_pred, t, torch.zeros(1)).sum(1) for t in thetas])
-
-    return torch.sigmoid(c * (w_theta - mean_theta))
-
-
-
 def rand_loss(y_target, y_pred, theta, n=100):
 
     w_theta = torch.where(y_target != y_pred, theta, torch.tensor(0.)).sum(1)
@@ -30,6 +21,5 @@ def moment_loss(y_target, y_pred, theta, order=1):
     w_theta = torch.where(y_target != y_pred, theta, torch.tensor(0.)).sum(1)
 
     return w_theta ** order
-
 
 

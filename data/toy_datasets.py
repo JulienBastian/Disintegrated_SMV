@@ -40,7 +40,7 @@ DATASETS = {
     "moons": load_moons
 }
 
-def toy_dataset(name, n_train, n_test, **kwargs):
+def toy_dataset(name, n_train=1000, n_test=1000, **kwargs):
 
     if name == "normals":
         X_train, y_train, X_test, y_test = DATASETS[name](n_train // 2, n_test // 2, means=((-1, 0), (1, 0)), scales=(np.diag([0.1, 1]), np.diag([0.1, 1])))

@@ -1,0 +1,4 @@
+-r requirements.txt
+
+ipykernel~=6.29.5
+seaborn~=0.13.2

@@ -1,14 +1,14 @@
-"""Checks that their binary metrics, fed with signed correctness, give the multiclass quantities of the thesis."""
+"""Checks that the binary metrics of Viallard et al., fed with signed correctness, give the multiclass quantities of the thesis."""
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-sys.path[:0] = [str(HERE / "ECML21-PB-CBound"), str(HERE.parents[1])]
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import torch
 
-from core.metrics import Metrics
+from third_party.pb_cbound.core.metrics import Metrics
 
 rng = np.random.default_rng(0)
 for _ in range(20):

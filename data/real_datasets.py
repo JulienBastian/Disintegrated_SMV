@@ -8,9 +8,7 @@ from category_encoders.ordinal import OrdinalEncoder
 
 from data.utils import get_validation_set, download, read_idx_file
 from sklearn.datasets import load_svmlight_file
-import torch
 import os
-import openml
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress INFO, WARNING, and ERROR messages when loading the datasets.
 def read_libsvm_file(path):
     X, y = load_svmlight_file(path)
@@ -29,7 +27,7 @@ def fetch_SVMGUIDE1(path, valid_size=0.2, test_size=0.2, seed=None):
         download('https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/svmguide1.t', test_path)
 
     X_train, y_train = read_idx_file(train_path, 4, " ")
-    X_test, y_test = read_idx_file(train_path, 4, " ")
+    X_test, y_test = read_idx_file(test_path, 4, " ")
 
     y_train[y_train == 0] = -1
     y_test[y_test == 0] = -1
@@ -250,8 +248,6 @@ def fetch_SEGMENT(path, valid_size=0.2, test_size=0.2, seed=None):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, stratify=y, test_size=test_size, random_state=seed
     )
-    print(f" X train {X_train}")
-    print(f"y test {y_test}")
     # Split validation
     X_val, y_val = get_validation_set(X_train, y_train, valid_size, seed)
 

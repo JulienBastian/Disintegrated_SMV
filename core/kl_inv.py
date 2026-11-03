@@ -67,6 +67,6 @@ class klInvFunction(torch.autograd.Function):
         grad_epsilon = 1. / (term_1-term_2)
 
         if torch.isnan(grad_q) or torch.isnan(grad_epsilon):
-            import pdb; pdb.set_trace()
+            raise FloatingPointError("NaN encountered in the inverse-KL backward pass")
 
         return grad_output * grad_q, grad_output * grad_epsilon, None

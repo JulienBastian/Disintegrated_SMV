@@ -1,0 +1,25 @@
+# Runtime subset of the historical experiment environment.
+# Use Python 3.8 or 3.9 for compatibility with scipy==1.7.1 and betaincder==0.1.1.
+betaincder==0.1.1
+category-encoders==2.2.2
+hydra-core==0.11.3
+matplotlib~=3.7.5
+notebook~=6.5.7
+tensorboardX==2.0
+tqdm==4.66.3
+torch~=2.4.1
+numpy~=1.22.4
+scipy==1.7.1
+requests~=2.32.3
+scikit-learn~=1.3.2
+pandas~=2.0.3
+protobuf==3.20.0
+ipykernel~=6.29.5
+seaborn~=0.13.2
+
+# C-bound baseline (training.risk=CB)
+cvxpy==1.4.4
+clarabel==0.9.0
+ecos==2.0.14
+osqp==0.6.7.post3
+scs==3.2.7

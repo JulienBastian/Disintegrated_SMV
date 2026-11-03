@@ -1,0 +1,38 @@
+num_workers: 4
+
+model:
+  M: 100
+  prior: 0.1
+  pred: "rf"
+  bootstrap: 0.5
+  tree_depth: None
+  m: 0.5
+  uniform: False
+
+pretraining:
+  learnt_prior: False
+
+training:
+  seed: 23042021
+  lr: 0.1
+  batch_size: 1024
+  num_epochs: 100
+  risk: "des_rivasplata_dir"
+  opt_bound: True
+  sigmoid_c: 100
+  rand_n: 100
+  MC_draws: 1
+  order: 1.5
+  risk_type: "draw"
+
+dataset: "PROTEIN"
+
+bound:
+  delta: 0.05
+  type: "seeger"
+  stochastic: False
+
+variability:
+  num_draws: 100
+  output_root: "results_variability"
+  overwrite: False

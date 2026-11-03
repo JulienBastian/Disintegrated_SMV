@@ -3,9 +3,9 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 import torch
 
-from core.numpy_dataset import NumpyDataset
-from voter.majority_vote import MajorityVote
-from voter.majority_vote_diff import MajorityVoteDiff
+from ..core.numpy_dataset import NumpyDataset
+from ..voter.majority_vote import MajorityVote
+from ..voter.majority_vote_diff import MajorityVoteDiff
 
 ###############################################################################
 

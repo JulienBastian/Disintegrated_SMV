@@ -83,8 +83,6 @@ class Dataset:
         self.y_test = data_dict['y_test']
 
         if normalize:
-
-            print("Normalize dataset")
             axis = [0] + [i + 2 for i in range(self.X_train.ndim - 2)]
             self.mean = np.mean(self.X_train, axis=tuple(axis), dtype=np.float32)
             self.std = np.std(self.X_train, axis=tuple(axis), dtype=np.float32)
@@ -115,5 +113,4 @@ class TorchDataset(torch.utils.data.Dataset):
         return self.num_data
 
     def __getitem__(self, idx):
-        # import pdb; pdb.set_trace()
         return self.X[idx], self.y[idx]

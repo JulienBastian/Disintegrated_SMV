@@ -4,8 +4,8 @@ import inspect
 import math
 import numpy as np
 
-from core.kl_inv import kl_inv
-from voter.majority_vote import MajorityVote
+from .kl_inv import kl_inv
+from ..voter.majority_vote import MajorityVote
 
 ###############################################################################
 
@@ -15,7 +15,7 @@ class MetaMetrics(type):
     def __get_class_dict(cls):
         class_dict = {}
         for class_name, class_ in inspect.getmembers(
-            importlib.import_module("core.metrics"), inspect.isclass
+            importlib.import_module(__name__), inspect.isclass
         ):
             if(class_name != "MetaMetrics" and class_name != "Metrics"):
                 class_name = class_name.replace("Metrics", "")
