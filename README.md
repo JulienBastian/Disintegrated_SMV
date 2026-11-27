@@ -1,8 +1,21 @@
 # On the Disintegration of the Stochastic Majority Vote
 
-This repository contains the implementation of the experiments from the paper:
+Code for the paper **On the Disintegration of the Stochastic Majority Vote: From PAC-Bayesian Bounds to a Self-Bounding Algorithm**,
+Julien Bastian, Benjamin Leblanc, Pascal Germain, Amaury Habrard, Guillaume Metzler, Emilie Morvant, Paul Viallard.
+*Transactions on Machine Learning Research (TMLR)*, 2026. [OpenReview](https://openreview.net/forum?id=mxQSkV3yzk)
 
-> **On the Disintegration of the Stochastic Majority Vote: From PAC-Bayesian Bounds to a Self-Bounding Algorithm**
+## Citation
+
+```bibtex
+@article{bastian2026disintegration,
+  title   = {On the Disintegration of the Stochastic Majority Vote: From {PAC}-Bayesian Bounds to a Self-Bounding Algorithm},
+  author  = {Bastian, Julien and Leblanc, Benjamin and Germain, Pascal and Habrard, Amaury and Metzler, Guillaume and Morvant, Emilie and Viallard, Paul},
+  journal = {Transactions on Machine Learning Research},
+  issn    = {2835-8856},
+  year    = {2026},
+  url     = {https://openreview.net/forum?id=mxQSkV3yzk}
+}
+```
 
 
 ## Running the experiments
