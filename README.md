@@ -7,11 +7,7 @@ This repository contains the implementation of the experiments from the paper:
 
 ## Running the experiments
 
-Create and activate the Python environment:
-
 ```bash
-/usr/bin/python3.8 -m venv .venv
-source .venv/bin/activate
 python -m pip install -r requirements-analysis.txt
 ```
 
