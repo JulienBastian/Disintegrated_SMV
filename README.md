@@ -24,14 +24,23 @@ Julien Bastian, Benjamin Leblanc, Pascal Germain, Amaury Habrard, Guillaume Metz
 python -m pip install -r requirements-analysis.txt
 ```
 
-To launch all binary and multiclass experiments locally:
+To launch all binary and multiclass experiments:
 
 ```bash
 ./training.sh
 ```
 
 
-To run a single configuration, use the following syntax :
+A subset of the grid can be selected with environment variables, e.g.:
+
+```bash
+SMV_RISKS="des_rivasplata_dir" SMV_BINARY_DATASETS="MUSH HABER" ./training.sh
+```
+
+See the top of `training.sh` for the full list of options.
+
+
+To run a single configuration, use the following syntax:
 
 ```bash
 python training.py \
