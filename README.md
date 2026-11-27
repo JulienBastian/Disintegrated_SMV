@@ -20,6 +20,7 @@ Julien Bastian, Benjamin Leblanc, Pascal Germain, Amaury Habrard, Guillaume Metz
 
 ## Running the experiments
 
+Requires Python 3.8 or 3.9 (needed for `scipy==1.7.1`).
 ```bash
 python -m pip install -r requirements-analysis.txt
 ```
